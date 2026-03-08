@@ -5,6 +5,7 @@ wrappers see the same agent definitions.
 """
 
 import tomllib
+import os
 from pathlib import Path
 
 ROOT = Path(__file__).parent
@@ -38,5 +39,36 @@ def load_config(root: Path | None = None) -> dict:
                 config_agents[name] = agent_cfg
             else:
                 print(f"  Warning: Ignoring local agent '{name}' (already defined in config.toml)")
+
+    # Environment overrides (useful for cloud deployment)
+    server_cfg = config.setdefault("server", {})
+    if os.getenv("AGENTCHATTR_HOST"):
+        server_cfg["host"] = os.getenv("AGENTCHATTR_HOST")
+    if os.getenv("AGENTCHATTR_PORT"):
+        try:
+            server_cfg["port"] = int(os.getenv("AGENTCHATTR_PORT"))
+        except ValueError:
+            pass
+    elif os.getenv("PORT"):
+        try:
+            server_cfg["port"] = int(os.getenv("PORT"))
+        except ValueError:
+            pass
+
+    bridge_cfg = config.setdefault("bridge", {})
+    if os.getenv("AGENTCHATTR_BRIDGE_ENABLED"):
+        bridge_cfg["enabled"] = os.getenv("AGENTCHATTR_BRIDGE_ENABLED", "").lower() in ("1", "true", "yes")
+    if os.getenv("AGENTCHATTR_BRIDGE_KEY"):
+        bridge_cfg["bridge_key"] = os.getenv("AGENTCHATTR_BRIDGE_KEY")
+    if os.getenv("TELEGRAM_BOT_TOKEN"):
+        bridge_cfg["telegram_bot_token"] = os.getenv("TELEGRAM_BOT_TOKEN")
+    if os.getenv("WHATSAPP_ACCESS_TOKEN"):
+        bridge_cfg["whatsapp_access_token"] = os.getenv("WHATSAPP_ACCESS_TOKEN")
+    if os.getenv("WHATSAPP_PHONE_NUMBER_ID"):
+        bridge_cfg["whatsapp_phone_number_id"] = os.getenv("WHATSAPP_PHONE_NUMBER_ID")
+    if os.getenv("WHATSAPP_VERIFY_TOKEN"):
+        bridge_cfg["whatsapp_verify_token"] = os.getenv("WHATSAPP_VERIFY_TOKEN")
+    if os.getenv("WHATSAPP_FREE_UNTIL"):
+        bridge_cfg["default_whatsapp_free_until"] = os.getenv("WHATSAPP_FREE_UNTIL")
 
     return config

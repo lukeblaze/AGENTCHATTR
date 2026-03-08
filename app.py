@@ -11,7 +11,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File
 from fastapi.requests import Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from store import MessageStore
@@ -23,6 +23,7 @@ from agents import AgentTrigger
 from registry import RuntimeRegistry
 from session_store import SessionStore, validate_session_template
 from session_engine import SessionEngine
+from remote_bridge import RemoteBridge
 
 log = logging.getLogger(__name__)
 
@@ -38,6 +39,7 @@ agents: AgentTrigger | None = None
 registry: RuntimeRegistry | None = None
 session_store: SessionStore | None = None
 session_engine: SessionEngine | None = None
+bridge_relay: RemoteBridge | None = None
 config: dict = {}
 ws_clients: set[WebSocket] = set()
 
@@ -181,7 +183,7 @@ def _install_security_middleware(token: str, cfg: dict):
             # Static assets, index page, and uploaded images are public.
             # The index page injects the token client-side via same-origin script.
             # Uploads use random filenames and have path-traversal protection.
-            if path == "/" or path.startswith(("/static/", "/uploads/", "/api/roles")):
+            if path == "/" or path.startswith(("/static/", "/uploads/", "/api/roles", "/api/bridge/")):
                 return await call_next(request)
 
             # Agent registration/heartbeat: loopback only (no remote agent minting).
@@ -227,7 +229,7 @@ def _install_security_middleware(token: str, cfg: dict):
 
 
 def configure(cfg: dict, session_token: str = ""):
-    global store, rules, summaries, jobs, router, agents, registry, session_store, session_engine, config
+    global store, rules, summaries, jobs, router, agents, registry, session_store, session_engine, bridge_relay, config
     config = cfg
     # --- Security: store the session token and install middleware ---
     _install_security_middleware(session_token, cfg)
@@ -242,6 +244,7 @@ def configure(cfg: dict, session_token: str = ""):
         log_path = legacy_log_path
 
     store = MessageStore(str(log_path))
+    bridge_relay = RemoteBridge(cfg.get("bridge", {}), data_dir, store)
     # Initialize store upload dir from config
     raw_upload_dir = cfg.get("images", {}).get("upload_dir", "./uploads")
     store.upload_dir = Path(raw_upload_dir)
@@ -614,6 +617,11 @@ async def _handle_new_message(msg: dict):
 
     if not suppress_broadcast:
         await broadcast(msg)
+        if bridge_relay:
+            try:
+                await asyncio.to_thread(bridge_relay.relay_message, msg, known_agents)
+            except Exception:
+                log.exception("remote bridge relay failed")
 
     # If the raw slash command was persisted (MCP path), silently remove it.
     # It was never broadcast to WebSocket clients, so no delete event needed.
@@ -1388,6 +1396,58 @@ async def api_send(request: Request):
 
     msg = store.add(sender, text, channel=channel)
     return JSONResponse(msg)
+
+
+@app.post("/api/bridge/telegram/webhook")
+async def bridge_telegram_webhook(request: Request):
+    if not bridge_relay or not bridge_relay.enabled:
+        return JSONResponse({"error": "bridge disabled"}, status_code=503)
+
+    key = request.query_params.get("bridge_key") or request.headers.get("x-bridge-key")
+    if not bridge_relay.verify_bridge_key(key):
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "invalid JSON"}, status_code=400)
+
+    bridge_relay.ingest_telegram_update(body)
+    return JSONResponse({"ok": True})
+
+
+@app.get("/api/bridge/whatsapp/webhook")
+async def bridge_whatsapp_verify(request: Request):
+    if not bridge_relay or not bridge_relay.enabled:
+        return PlainTextResponse("bridge disabled", status_code=503)
+
+    key = request.query_params.get("bridge_key") or request.headers.get("x-bridge-key")
+    if not bridge_relay.verify_bridge_key(key):
+        return PlainTextResponse("forbidden", status_code=403)
+
+    mode = request.query_params.get("hub.mode", "")
+    verify_token = request.query_params.get("hub.verify_token", "")
+    challenge = request.query_params.get("hub.challenge", "")
+    ok, response = bridge_relay.whatsapp_verify(mode, verify_token, challenge)
+    return PlainTextResponse(response, status_code=200 if ok else 403)
+
+
+@app.post("/api/bridge/whatsapp/webhook")
+async def bridge_whatsapp_webhook(request: Request):
+    if not bridge_relay or not bridge_relay.enabled:
+        return JSONResponse({"error": "bridge disabled"}, status_code=503)
+
+    key = request.query_params.get("bridge_key") or request.headers.get("x-bridge-key")
+    if not bridge_relay.verify_bridge_key(key):
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "invalid JSON"}, status_code=400)
+
+    bridge_relay.ingest_whatsapp_update(body)
+    return JSONResponse({"ok": True})
 
 
 @app.get("/api/status")

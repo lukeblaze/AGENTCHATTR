@@ -3,6 +3,7 @@
 import asyncio
 import secrets
 import sys
+import os
 import threading
 import time
 import logging
@@ -112,18 +113,22 @@ def main():
         print("  - If agents run with auto-approve, this means remote code execution")
         print()
         print("  Only use this on a trusted home network. Never on public/shared WiFi.")
-        if "--allow-network" not in sys.argv:
+        allow_network = ("--allow-network" in sys.argv) or (os.getenv("AGENTCHATTR_ALLOW_NETWORK") == "1")
+        if not allow_network:
             print("  Pass --allow-network to start anyway, or set host to 127.0.0.1.\n")
             sys.exit(1)
         else:
             print()
-            try:
-                confirm = input("  Type YES to accept these risks and start: ").strip()
-            except (EOFError, KeyboardInterrupt):
-                confirm = ""
-            if confirm != "YES":
-                print("  Aborted.\n")
-                sys.exit(1)
+            if os.getenv("AGENTCHATTR_ALLOW_NETWORK") == "1":
+                print("  AGENTCHATTR_ALLOW_NETWORK=1 set; proceeding non-interactively.\n")
+            else:
+                try:
+                    confirm = input("  Type YES to accept these risks and start: ").strip()
+                except (EOFError, KeyboardInterrupt):
+                    confirm = ""
+                if confirm != "YES":
+                    print("  Aborted.\n")
+                    sys.exit(1)
 
     print(f"\n  agentchattr")
     print(f"  Web UI:  http://{host}:{port}")

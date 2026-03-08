@@ -37,3 +37,15 @@
 # model = "local-model"
 # color = "#06b6d4"
 # label = "LM Studio"
+
+# --- Remote bridge (Telegram + WhatsApp) ---
+# Keep real secrets in config.local.toml (gitignored).
+#
+# [bridge]
+# enabled = true
+# bridge_key = "replace-with-long-random-secret"
+# telegram_bot_token = "123456:ABCDEF..."
+# whatsapp_access_token = "EAAG..."
+# whatsapp_phone_number_id = "123456789012345"
+# whatsapp_verify_token = "verify-token-you-set-in-meta"
+# default_whatsapp_free_until = "2026-12-31"

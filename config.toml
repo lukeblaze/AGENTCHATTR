@@ -44,6 +44,24 @@ sse_port = 8201
 upload_dir = "./uploads"
 max_size_mb = 10
 
+[bridge]
+enabled = false
+# Shared secret required on inbound webhook query/header.
+# Use a long random string in production.
+bridge_key = "change-me"
+
+# Telegram Bot API token (from @BotFather)
+telegram_bot_token = ""
+
+# WhatsApp Cloud API settings (Meta)
+whatsapp_access_token = ""
+whatsapp_phone_number_id = ""
+whatsapp_verify_token = ""
+
+# Optional: date cutoff when outbound replies auto-fallback to Telegram
+# for users whose preferred platform is WhatsApp.
+# default_whatsapp_free_until = "2026-12-31"
+
 # --- MCP injection modes ---
 # By default, claude/codex/gemini/kimi use built-in MCP config injection.
 # For other CLI agents, set mcp_inject to tell the wrapper how to inject auth:

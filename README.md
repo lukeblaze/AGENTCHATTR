@@ -251,6 +251,10 @@ MCP instructions tell agents: if you are addressed in chat, respond in chat (don
 
 ## Advanced setup
 
+### Remote chat bridge (Telegram + WhatsApp)
+
+For cloud-hosted chat access and WhatsApp->Telegram fallback routing, see `REMOTE_BOTS_SETUP.md`.
+
 ### Manual MCP registration
 
 The start scripts auto-configure MCP on launch. If you prefer to register by hand:
