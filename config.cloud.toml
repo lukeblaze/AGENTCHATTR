@@ -1,0 +1,20 @@
+# Cloud-safe API agents for always-on deployment.
+# No secrets are stored here; provide keys via environment variables.
+
+[agents.openai]
+type = "api"
+base_url = "https://api.openai.com/v1"
+model = "gpt-4o-mini"
+api_key_env = "OPENAI_API_KEY"
+color = "#0f766e"
+label = "OpenAI"
+context_messages = 24
+
+[agents.openrouter]
+type = "api"
+base_url = "https://openrouter.ai/api/v1"
+model = "openai/gpt-4o-mini"
+api_key_env = "OPENROUTER_API_KEY"
+color = "#1d4ed8"
+label = "OpenRouter"
+context_messages = 24

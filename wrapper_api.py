@@ -40,7 +40,7 @@ def _auth_headers(token: str, *, include_json: bool = False) -> dict[str, str]:
 
 def main():
     from config_loader import load_config
-    from wrapper import _register_instance
+    from wrapper import _api_url, _register_instance
 
     config = load_config(ROOT)
     agent_names = list(config.get("agents", {}).keys())
@@ -126,7 +126,7 @@ def main():
                 n = get_name()
                 t = get_token()
                 req = urllib.request.Request(
-                    f"http://127.0.0.1:{server_port}/api/heartbeat/{n}",
+                    _api_url(server_port, f"/api/heartbeat/{n}"),
                     method="POST",
                     data=json.dumps({"active": is_working()}).encode(),
                     headers=_auth_headers(t, include_json=True),
@@ -155,7 +155,7 @@ def main():
     def get_my_role():
         try:
             req = urllib.request.Request(
-                f"http://127.0.0.1:{server_port}/api/status",
+                _api_url(server_port, "/api/status"),
                 headers=_auth_headers(get_token()),
             )
             with urllib.request.urlopen(req, timeout=5) as resp:
@@ -170,7 +170,7 @@ def main():
     def get_online_agents():
         try:
             req = urllib.request.Request(
-                f"http://127.0.0.1:{server_port}/api/status",
+                _api_url(server_port, "/api/status"),
                 headers=_auth_headers(get_token()),
             )
             with urllib.request.urlopen(req, timeout=5) as resp:
@@ -187,7 +187,7 @@ def main():
         if since_id:
             params = f"since_id={since_id}&{params}"
         req = urllib.request.Request(
-            f"http://127.0.0.1:{server_port}/api/messages?{params}",
+            _api_url(server_port, f"/api/messages?{params}"),
             headers=_auth_headers(get_token()),
         )
         with urllib.request.urlopen(req, timeout=10) as resp:
@@ -197,7 +197,7 @@ def main():
     def send_message(text, channel="general"):
         body = json.dumps({"text": text, "channel": channel}).encode()
         req = urllib.request.Request(
-            f"http://127.0.0.1:{server_port}/api/send",
+            _api_url(server_port, "/api/send"),
             method="POST",
             data=body,
             headers=_auth_headers(get_token(), include_json=True),
@@ -331,7 +331,7 @@ def main():
             n = get_name()
             t = get_token()
             req = urllib.request.Request(
-                f"http://127.0.0.1:{server_port}/api/deregister/{n}",
+                _api_url(server_port, f"/api/deregister/{n}"),
                 method="POST",
                 data=b"",
                 headers=_auth_headers(t),

@@ -24,6 +24,7 @@ import sys
 import threading
 import time
 from pathlib import Path
+from urllib.parse import urlparse
 
 ROOT = Path(__file__).parent
 
@@ -160,11 +161,37 @@ def _resolve_mcp_inject(agent: str, agent_cfg: dict) -> dict:
 
 def _get_server_url(mcp_cfg: dict, transport: str) -> str:
     """Build the MCP server URL for the given transport."""
+    host = _mcp_host()
     if transport == "sse":
         port = mcp_cfg.get("sse_port", 8201)
-        return f"http://127.0.0.1:{port}/sse"
+        return f"http://{host}:{port}/sse"
     port = mcp_cfg.get("http_port", 8200)
-    return f"http://127.0.0.1:{port}/mcp"
+    return f"http://{host}:{port}/mcp"
+
+
+def _api_base(server_port: int) -> str:
+    """Resolve API base URL for wrapper/server communication."""
+    configured = (os.getenv("AGENTCHATTR_SERVER_URL") or "").strip().rstrip("/")
+    if configured:
+        return configured
+    return f"http://127.0.0.1:{server_port}"
+
+
+def _api_url(server_port: int, path: str) -> str:
+    return f"{_api_base(server_port)}{path}"
+
+
+def _mcp_host() -> str:
+    """Use the host part from AGENTCHATTR_SERVER_URL when provided."""
+    configured = (os.getenv("AGENTCHATTR_SERVER_URL") or "").strip()
+    if configured:
+        try:
+            parsed = urlparse(configured)
+            if parsed.hostname:
+                return parsed.hostname
+        except Exception:
+            pass
+    return "127.0.0.1"
 
 
 def _apply_mcp_inject(
@@ -312,7 +339,7 @@ def _register_instance(server_port: int, base: str, label: str | None = None) ->
 
     reg_body = json.dumps({"base": base, "label": label}).encode()
     reg_req = urllib.request.Request(
-        f"http://127.0.0.1:{server_port}/api/register",
+        _api_url(server_port, "/api/register"),
         method="POST",
         data=reg_body,
         headers={"Content-Type": "application/json"},
@@ -353,7 +380,7 @@ def _fetch_role(server_port: int, agent_name: str) -> str:
     """Fetch this agent's role from the server status endpoint."""
     try:
         import urllib.request
-        req = urllib.request.Request(f"http://127.0.0.1:{server_port}/api/roles")
+        req = urllib.request.Request(_api_url(server_port, "/api/roles"))
         with urllib.request.urlopen(req, timeout=3) as resp:
             roles = json.loads(resp.read())
         return roles.get(agent_name, "")
@@ -366,7 +393,7 @@ def _fetch_active_rules(server_port: int, token: str = "") -> dict | None:
     try:
         import urllib.request
         headers = {"Authorization": f"Bearer {token}"} if token else {}
-        req = urllib.request.Request(f"http://127.0.0.1:{server_port}/api/rules/active", headers=headers)
+        req = urllib.request.Request(_api_url(server_port, "/api/rules/active"), headers=headers)
         with urllib.request.urlopen(req, timeout=3) as resp:
             return json.loads(resp.read())
     except Exception:
@@ -382,7 +409,7 @@ def _report_rule_sync(server_port: int, agent_name: str, epoch: int, token: str 
         if token:
             headers["Authorization"] = f"Bearer {token}"
         req = urllib.request.Request(
-            f"http://127.0.0.1:{server_port}/api/rules/agent_sync/{agent_name}",
+            _api_url(server_port, f"/api/rules/agent_sync/{agent_name}"),
             method="POST",
             data=body,
             headers=headers,
@@ -549,10 +576,10 @@ def main():
 
         transport = inject_cfg.get("mcp_transport", "http")
         if transport == "sse":
-            upstream_base = f"http://127.0.0.1:{mcp_cfg.get('sse_port', 8201)}"
+            upstream_base = f"http://{_mcp_host()}:{mcp_cfg.get('sse_port', 8201)}"
             proxy_path = "/sse"
         else:
-            upstream_base = f"http://127.0.0.1:{mcp_cfg.get('http_port', 8200)}"
+            upstream_base = f"http://{_mcp_host()}:{mcp_cfg.get('http_port', 8200)}"
             proxy_path = "/mcp"
 
         proxy = McpIdentityProxy(
@@ -670,7 +697,7 @@ def main():
         while True:
             current_name, _ = get_identity()
             current_token = get_token()
-            url = f"http://127.0.0.1:{server_port}/api/heartbeat/{current_name}"
+            url = _api_url(server_port, f"/api/heartbeat/{current_name}")
             try:
                 req = urllib.request.Request(
                     url,
@@ -774,7 +801,7 @@ def main():
                 if should_send:
                     current_name, _ = get_identity()
                     current_token = get_token()
-                    url = f"http://127.0.0.1:{server_port}/api/heartbeat/{current_name}"
+                    url = _api_url(server_port, f"/api/heartbeat/{current_name}")
                     body = json.dumps({"active": active}).encode()
                     req = urllib.request.Request(
                         url,
@@ -836,7 +863,7 @@ def main():
             current_name, _ = get_identity()
             current_token = get_token()
             dereg_req = urllib.request.Request(
-                f"http://127.0.0.1:{server_port}/api/deregister/{current_name}",
+                _api_url(server_port, f"/api/deregister/{current_name}"),
                 method="POST",
                 data=b"",
                 headers=_auth_headers(current_token),

@@ -782,7 +782,8 @@ async def _handle_new_message(msg: dict):
         # Session guard: suppress out-of-turn agent triggers
         if allowed_agent and target != allowed_agent:
             continue
-        if not mcp_bridge.is_online(target):
+        is_remote_bridge_channel = channel.startswith("remote-tg-") or channel.startswith("remote-wa-")
+        if not mcp_bridge.is_online(target) and not is_remote_bridge_channel:
             store.add("system", f"{target} appears offline — message queued.", msg_type="system", channel=channel)
         if agents.is_available(target):
             await agents.trigger(target, message=chat_msg, channel=channel, prompt=custom_prompt)

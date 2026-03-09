@@ -87,6 +87,25 @@ You can deploy without editing tracked config by setting:
 - `WHATSAPP_PHONE_NUMBER_ID=...`
 - `WHATSAPP_VERIFY_TOKEN=...`
 
+Optional 24/7 wrapper supervision (keeps agent presence online continuously):
+
+- `AGENTCHATTR_AUTO_START_WRAPPERS=1`
+- `AGENTCHATTR_AUTO_START_AGENTS=all` (recommended)
+   - or use a list: `agent1,agent2`
+   - if unset, the supervisor now attempts all configured agents by default
+
+If wrappers run outside the same host/container as the server, point them at your deployed URL:
+
+- `AGENTCHATTR_SERVER_URL=https://YOUR-HOST`
+
+Cloud-safe API agents (no CLI binaries required):
+
+- This repo includes `config.cloud.toml` with two API agents: `openai`, `openrouter`.
+- They auto-load at startup and are safe to commit because they reference env var names only.
+- Set these env vars in your host:
+   - `OPENAI_API_KEY=...`
+   - `OPENROUTER_API_KEY=...`
+
 ## Quick deploy with Docker
 
 This repo now includes a `Dockerfile`.

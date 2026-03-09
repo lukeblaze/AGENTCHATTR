@@ -25,20 +25,28 @@ def load_config(root: Path | None = None) -> dict:
     with open(config_path, "rb") as f:
         config = tomllib.load(f)
 
-    local_path = root / "config.local.toml"
-    if local_path.exists():
-        with open(local_path, "rb") as f:
-            local = tomllib.load(f)
-        
-        # Merge [agents] section — local agents are added ONLY if they don't already exist.
-        # This protects the "holy trinity" (claude, codex, gemini) from being overridden.
-        local_agents = local.get("agents", {})
+    def _merge_agents(extra_cfg: dict, source_name: str):
+        local_agents = extra_cfg.get("agents", {})
         config_agents = config.setdefault("agents", {})
         for name, agent_cfg in local_agents.items():
             if name not in config_agents:
                 config_agents[name] = agent_cfg
             else:
-                print(f"  Warning: Ignoring local agent '{name}' (already defined in config.toml)")
+                print(f"  Warning: Ignoring agent '{name}' from {source_name} (already defined)")
+
+    # Optional, deploy-friendly config file (tracked if desired).
+    cloud_path = root / "config.cloud.toml"
+    if cloud_path.exists():
+        with open(cloud_path, "rb") as f:
+            cloud = tomllib.load(f)
+        _merge_agents(cloud, "config.cloud.toml")
+
+    # User-local overrides (gitignored).
+    local_path = root / "config.local.toml"
+    if local_path.exists():
+        with open(local_path, "rb") as f:
+            local = tomllib.load(f)
+        _merge_agents(local, "config.local.toml")
 
     # Environment overrides (useful for cloud deployment)
     server_cfg = config.setdefault("server", {})
