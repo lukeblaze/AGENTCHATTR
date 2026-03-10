@@ -19,8 +19,12 @@ services:
       - key: AGENTCHATTR_AUTO_START_WRAPPERS
         value: "1"
       - key: AGENTCHATTR_AUTO_START_AGENTS
-        value: all
-      - key: OPENAI_API_KEY
+        value: openrouter
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: TOGETHER_API_KEY
         sync: false
       - key: OPENROUTER_API_KEY
         sync: false

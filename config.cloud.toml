@@ -1,15 +1,6 @@
 # Cloud-safe API agents for always-on deployment.
 # No secrets are stored here; provide keys via environment variables.
 
-[agents.openai]
-type = "api"
-base_url = "https://api.openai.com/v1"
-model = "gpt-4o-mini"
-api_key_env = "OPENAI_API_KEY"
-color = "#0f766e"
-label = "OpenAI"
-context_messages = 24
-
 [agents.openrouter]
 type = "api"
 base_url = "https://openrouter.ai/api/v1"
@@ -17,4 +8,31 @@ model = "openai/gpt-4o-mini"
 api_key_env = "OPENROUTER_API_KEY"
 color = "#1d4ed8"
 label = "OpenRouter"
+context_messages = 24
+
+[agents.geminiapi]
+type = "api"
+base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
+model = "gemini-2.0-flash"
+api_key_env = "GEMINI_API_KEY"
+color = "#0f9d58"
+label = "GeminiAPI"
+context_messages = 24
+
+[agents.groq]
+type = "api"
+base_url = "https://api.groq.com/openai/v1"
+model = "llama-3.3-70b-versatile"
+api_key_env = "GROQ_API_KEY"
+color = "#f97316"
+label = "Groq"
+context_messages = 24
+
+[agents.together]
+type = "api"
+base_url = "https://api.together.xyz/v1"
+model = "meta-llama/Llama-3.1-70B-Instruct-Turbo"
+api_key_env = "TOGETHER_API_KEY"
+color = "#7c3aed"
+label = "Together"
 context_messages = 24

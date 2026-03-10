@@ -338,11 +338,15 @@ def _register_instance(server_port: int, base: str, label: str | None = None) ->
     import urllib.request
 
     reg_body = json.dumps({"base": base, "label": label}).encode()
+    headers = {"Content-Type": "application/json"}
+    wrapper_key = (os.getenv("AGENTCHATTR_WRAPPER_KEY") or "").strip()
+    if wrapper_key:
+        headers["X-Wrapper-Key"] = wrapper_key
     reg_req = urllib.request.Request(
         _api_url(server_port, "/api/register"),
         method="POST",
         data=reg_body,
-        headers={"Content-Type": "application/json"},
+        headers=headers,
     )
     with urllib.request.urlopen(reg_req, timeout=5) as reg_resp:
         return json.loads(reg_resp.read())

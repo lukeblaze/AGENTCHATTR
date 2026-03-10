@@ -1,0 +1,16 @@
+[Unit]
+Description=agentchattr wrapper for %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=%u
+WorkingDirectory=%h/AGENTCHATTR
+EnvironmentFile=%h/AGENTCHATTR/oracle/agentchattr.env
+ExecStart=%h/AGENTCHATTR/oracle/run_wrapper.sh %i
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

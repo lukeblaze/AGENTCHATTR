@@ -100,11 +100,59 @@ If wrappers run outside the same host/container as the server, point them at you
 
 Cloud-safe API agents (no CLI binaries required):
 
-- This repo includes `config.cloud.toml` with two API agents: `openai`, `openrouter`.
+- This repo includes `config.cloud.toml` with API agents: `openrouter`, `geminiapi`, `groq`, `together`.
 - They auto-load at startup and are safe to commit because they reference env var names only.
 - Set these env vars in your host:
-   - `OPENAI_API_KEY=...`
    - `OPENROUTER_API_KEY=...`
+   - `GEMINI_API_KEY=...`
+   - `GROQ_API_KEY=...`
+   - `TOGETHER_API_KEY=...`
+
+## Current status checklist
+
+Accomplished:
+
+- Render webhook/UI deployment running
+- Telegram bridge endpoint active
+- Cloud wrappers auto-start enabled
+- Offline legacy mentions can be routed to online cloud agents
+
+Credential-dependent (still needed per provider):
+
+- OpenRouter key (`OPENROUTER_API_KEY`) for `openrouter`
+- Gemini API key (`GEMINI_API_KEY`) for `geminiapi`
+- Groq API key (`GROQ_API_KEY`) for `groq`
+- Together API key (`TOGETHER_API_KEY`) for `together`
+- CLI logins for `claude`, `codex`, `gemini`, `kimi` when running wrappers on VM/local
+
+## Remote CLI wrapper security key
+
+By default, wrapper registration is loopback-only. To allow wrappers from a VM/local machine to register into your hosted server:
+
+1. Set on server host:
+   - `AGENTCHATTR_WRAPPER_KEY=<long-random-secret>`
+2. Set same value where wrappers run:
+   - `AGENTCHATTR_WRAPPER_KEY=<same-secret>`
+
+Wrappers now send `X-Wrapper-Key` during `/api/register`.
+
+## Windows startup script for remote wrappers
+
+Use:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File windows\install_remote_wrappers_startup_task.ps1 -ServerUrl "https://YOUR-HOST"
+```
+
+This installs a logon task that runs:
+
+- `windows\start_remote_wrappers.bat https://YOUR-HOST`
+
+If needed, pass wrapper key once during install:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File windows\install_remote_wrappers_startup_task.ps1 -ServerUrl "https://YOUR-HOST" -WrapperKey "YOUR_SECRET"
+```
 
 ## Quick deploy with Docker
 
@@ -131,3 +179,29 @@ Best path for reliability:
 - You review and merge in VS Code
 
 Directly writing into your local VS Code from cloud is possible, but requires exposing a secure local bridge and is riskier.
+
+## Oracle VM (CLI wrappers, 24/7)
+
+If you want real CLI agents (claude/codex/gemini/kimi) online 24/7 while keeping webhooks on Render:
+
+1. Keep Render hosting the public webhook/UI.
+2. Run wrappers on Oracle VM and point them to Render via `AGENTCHATTR_SERVER_URL`.
+
+Automation assets are included:
+
+- `oracle/bootstrap_oracle_vm.sh`
+- `oracle/install_wrapper_services.sh`
+- `oracle/systemd/agentchattr-wrapper@.service`
+- `oracle/README.md`
+
+On the VM:
+
+```bash
+bash oracle/bootstrap_oracle_vm.sh
+export AGENTCHATTR_SERVER_URL="https://YOUR-RENDER-HOST"
+claude auth login
+codex
+gemini
+kimi --api-key <YOUR_GROQ_KEY>
+bash oracle/install_wrapper_services.sh
+```

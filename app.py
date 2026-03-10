@@ -82,8 +82,8 @@ def _offline_fallback_map() -> dict[str, str]:
             pass
 
     return {
-        "claude": "openai",
-        "codex": "openai",
+        "claude": "openrouter",
+        "codex": "openrouter",
         "gemini": "openrouter",
         "kimi": "openrouter",
     }
@@ -208,6 +208,7 @@ def _install_security_middleware(token: str, cfg: dict):
         f"http://127.0.0.1:{port}",
         f"http://localhost:{port}",
     }
+    wrapper_key = (os.getenv("AGENTCHATTR_WRAPPER_KEY") or "").strip()
 
     class SecurityMiddleware(BaseHTTPMiddleware):
         async def dispatch(self, request: Request, call_next):
@@ -219,12 +220,22 @@ def _install_security_middleware(token: str, cfg: dict):
             if path == "/" or path.startswith(("/static/", "/uploads/", "/api/roles", "/api/status", "/api/bridge/")):
                 return await call_next(request)
 
-            # Agent registration/heartbeat: loopback only (no remote agent minting).
+            # Agent registration/heartbeat: loopback by default.
+            # Optional remote mode: set AGENTCHATTR_WRAPPER_KEY and send
+            # matching X-Wrapper-Key from the wrapper process.
             if path.startswith(("/api/register", "/api/deregister/", "/api/heartbeat/")):
                 client_ip = request.client.host if request.client else ""
-                if client_ip not in ("127.0.0.1", "::1", "localhost"):
+                is_loopback = client_ip in ("127.0.0.1", "::1", "localhost")
+                provided_key = (request.headers.get("x-wrapper-key") or "").strip()
+                key_ok = bool(wrapper_key and provided_key and provided_key == wrapper_key)
+                if not (is_loopback or key_ok):
                     return JSONResponse(
-                        {"error": f"forbidden: agent registration is restricted to local loopback. Source {client_ip} is not allowed."},
+                        {
+                            "error": (
+                                "forbidden: wrapper registration requires local loopback "
+                                "or a valid X-Wrapper-Key."
+                            )
+                        },
                         status_code=403,
                     )
                 return await call_next(request)
