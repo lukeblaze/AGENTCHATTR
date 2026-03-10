@@ -8,6 +8,7 @@ import threading
 import uuid
 import logging
 from pathlib import Path
+from urllib.parse import urlparse
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File
 from fastapi.requests import Request
@@ -198,11 +199,20 @@ def _install_security_middleware(token: str, cfg: dict):
 
             # --- Origin check (blocks cross-origin / DNS-rebinding attacks) ---
             origin = request.headers.get("origin")
-            if origin and origin not in allowed_origins:
-                return JSONResponse(
-                    {"error": "forbidden: origin not allowed"},
-                    status_code=403,
-                )
+            if origin:
+                req_host = (request.headers.get("x-forwarded-host") or request.headers.get("host") or "")
+                req_host = req_host.split(",")[0].strip().lower()
+                try:
+                    origin_host = (urlparse(origin).netloc or "").strip().lower()
+                except Exception:
+                    origin_host = ""
+
+                # Allow explicit local origins and same-host browser origins in cloud.
+                if origin not in allowed_origins and not (origin_host and req_host and origin_host == req_host):
+                    return JSONResponse(
+                        {"error": "forbidden: origin not allowed"},
+                        status_code=403,
+                    )
 
             # --- Token check ---
             # Allow registered agents to authenticate via Bearer token
