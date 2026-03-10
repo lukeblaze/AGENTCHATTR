@@ -38,6 +38,37 @@ def _auth_headers(token: str, *, include_json: bool = False) -> dict[str, str]:
     return headers
 
 
+def _provider_error_message(exc: Exception) -> str:
+    """Return a short, user-visible provider error summary."""
+    if isinstance(exc, urllib.error.HTTPError):
+        status = exc.code
+        body = ""
+        try:
+            body = exc.read().decode("utf-8", errors="ignore")
+        except Exception:
+            body = ""
+
+        detail = ""
+        if body:
+            try:
+                parsed = json.loads(body)
+                if isinstance(parsed, dict):
+                    err = parsed.get("error")
+                    if isinstance(err, dict):
+                        detail = err.get("message") or err.get("type") or ""
+                    elif isinstance(err, str):
+                        detail = err
+            except Exception:
+                # Keep body parsing best-effort only.
+                pass
+
+        if detail:
+            return f"provider HTTP {status}: {detail}"
+        return f"provider HTTP {status}"
+
+    return f"provider error: {exc}"
+
+
 def main():
     from config_loader import load_config
     from wrapper import _api_url, _register_instance
@@ -278,7 +309,12 @@ def main():
             send_message(response, channel=channel)
             print(f"  [{channel}] Responded ({len(response)} chars)")
         except Exception as exc:
-            print(f"  Error handling trigger: {exc}")
+            err_text = _provider_error_message(exc)
+            print(f"  Error handling trigger: {err_text}")
+            try:
+                send_message(f"[{my_name}] {err_text}", channel=channel)
+            except Exception:
+                pass
         finally:
             set_working(False)
 
