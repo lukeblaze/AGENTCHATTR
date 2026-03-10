@@ -19,7 +19,9 @@ services:
       - key: AGENTCHATTR_AUTO_START_WRAPPERS
         value: "1"
       - key: AGENTCHATTR_AUTO_START_AGENTS
-        value: openrouter
+        value: geminiapi,groq,openrouter,together
+      - key: AGENTCHATTR_OFFLINE_FALLBACK_MAP
+        value: '{"claude":"geminiapi","codex":"groq","gemini":"geminiapi","kimi":"groq"}'
       - key: GEMINI_API_KEY
         sync: false
       - key: GROQ_API_KEY
