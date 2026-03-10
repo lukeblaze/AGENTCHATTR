@@ -2,6 +2,7 @@
 REM Start CLI wrappers that connect to a remote hosted server (Render/VM).
 REM Usage:
 REM   windows\start_remote_wrappers.bat https://agentchattr.onrender.com
+REM   windows\start_remote_wrappers.bat https://agentchattr.onrender.com --background
 REM Optional env vars before running:
 REM   set AGENTCHATTR_WRAPPER_KEY=your-shared-secret
 
@@ -17,6 +18,7 @@ if "%~1"=="" (
 )
 
 set "AGENTCHATTR_SERVER_URL=%~1"
+set "RUN_MODE=%~2"
 
 echo.
 echo   Remote server: %AGENTCHATTR_SERVER_URL%
@@ -32,12 +34,24 @@ if not exist ".venv" (
 )
 call .venv\Scripts\activate.bat
 
-start "agentchattr claude wrapper" cmd /c "set AGENTCHATTR_SERVER_URL=%AGENTCHATTR_SERVER_URL%&& set AGENTCHATTR_WRAPPER_KEY=%AGENTCHATTR_WRAPPER_KEY%&& python wrapper.py claude"
-start "agentchattr codex wrapper" cmd /c "set AGENTCHATTR_SERVER_URL=%AGENTCHATTR_SERVER_URL%&& set AGENTCHATTR_WRAPPER_KEY=%AGENTCHATTR_WRAPPER_KEY%&& python wrapper.py codex"
-start "agentchattr gemini wrapper" cmd /c "set AGENTCHATTR_SERVER_URL=%AGENTCHATTR_SERVER_URL%&& set AGENTCHATTR_WRAPPER_KEY=%AGENTCHATTR_WRAPPER_KEY%&& python wrapper.py gemini"
-start "agentchattr kimi wrapper" cmd /c "set AGENTCHATTR_SERVER_URL=%AGENTCHATTR_SERVER_URL%&& set AGENTCHATTR_WRAPPER_KEY=%AGENTCHATTR_WRAPPER_KEY%&& python wrapper.py kimi"
+set "WRAPPER_PY=.venv\Scripts\python.exe"
+
+if /I "%RUN_MODE%"=="--background" (
+  set "START_FLAGS=/min"
+) else (
+  set "START_FLAGS="
+)
+
+start "agentchattr claude wrapper" %START_FLAGS% cmd /c "set AGENTCHATTR_SERVER_URL=%AGENTCHATTR_SERVER_URL%&& set AGENTCHATTR_WRAPPER_KEY=%AGENTCHATTR_WRAPPER_KEY%&& %WRAPPER_PY% wrapper.py claude"
+start "agentchattr codex wrapper" %START_FLAGS% cmd /c "set AGENTCHATTR_SERVER_URL=%AGENTCHATTR_SERVER_URL%&& set AGENTCHATTR_WRAPPER_KEY=%AGENTCHATTR_WRAPPER_KEY%&& %WRAPPER_PY% wrapper.py codex"
+start "agentchattr gemini wrapper" %START_FLAGS% cmd /c "set AGENTCHATTR_SERVER_URL=%AGENTCHATTR_SERVER_URL%&& set AGENTCHATTR_WRAPPER_KEY=%AGENTCHATTR_WRAPPER_KEY%&& %WRAPPER_PY% wrapper.py gemini"
+start "agentchattr kimi wrapper" %START_FLAGS% cmd /c "set AGENTCHATTR_SERVER_URL=%AGENTCHATTR_SERVER_URL%&& set AGENTCHATTR_WRAPPER_KEY=%AGENTCHATTR_WRAPPER_KEY%&& %WRAPPER_PY% wrapper.py kimi"
 
 echo.
-echo   Started wrapper windows for claude/codex/gemini/kimi.
+if /I "%RUN_MODE%"=="--background" (
+  echo   Started wrapper windows minimized (background mode).
+) else (
+  echo   Started wrapper windows for claude/codex/gemini/kimi.
+)
 echo.
 endlocal

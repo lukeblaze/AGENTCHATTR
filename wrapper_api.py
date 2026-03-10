@@ -49,6 +49,7 @@ def _provider_error_message(exc: Exception) -> str:
             body = ""
 
         detail = ""
+        fallback = ""
         if body:
             try:
                 parsed = json.loads(body)
@@ -60,10 +61,13 @@ def _provider_error_message(exc: Exception) -> str:
                         detail = err
             except Exception:
                 # Keep body parsing best-effort only.
-                pass
+                compact = " ".join(body.split())
+                fallback = compact[:180]
 
         if detail:
             return f"provider HTTP {status}: {detail}"
+        if fallback:
+            return f"provider HTTP {status}: {fallback}"
         return f"provider HTTP {status}"
 
     return f"provider error: {exc}"

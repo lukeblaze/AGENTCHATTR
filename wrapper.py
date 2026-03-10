@@ -19,6 +19,7 @@ How it works:
 
 import json
 import os
+import subprocess
 import shutil
 import sys
 import threading
@@ -139,7 +140,9 @@ _BUILTIN_DEFAULTS: dict[str, dict] = {
     },
     "kimi": {
         "mcp_inject": "flag",
-        "mcp_flag": "--mcp-config-file",
+        # Kimi CLI flags vary by version. We auto-detect and fallback.
+        "mcp_flag": "--mcp-config",
+        "mcp_flag_fallbacks": ["--mcp-config", "--mcp-config-file"],
         "mcp_transport": "http",
     },
 }
@@ -161,12 +164,49 @@ def _resolve_mcp_inject(agent: str, agent_cfg: dict) -> dict:
 
 def _get_server_url(mcp_cfg: dict, transport: str) -> str:
     """Build the MCP server URL for the given transport."""
+    configured = (os.getenv("AGENTCHATTR_SERVER_URL") or "").strip().rstrip("/")
+    if configured:
+        try:
+            parsed = urlparse(configured)
+            host = (parsed.hostname or "").strip().lower()
+            is_local = host in {"127.0.0.1", "localhost", "::1"}
+            # Hosted deployments usually expose a single public port.
+            if not is_local:
+                return f"{configured}{'/sse' if transport == 'sse' else '/mcp'}"
+        except Exception:
+            pass
+
     host = _mcp_host()
     if transport == "sse":
         port = mcp_cfg.get("sse_port", 8201)
         return f"http://{host}:{port}/sse"
     port = mcp_cfg.get("http_port", 8200)
     return f"http://{host}:{port}/mcp"
+
+
+def _resolve_proxy_upstream(mcp_cfg: dict, transport: str) -> tuple[str, str]:
+    """Return (upstream_base, upstream_path) for the local identity proxy."""
+    full_url = _get_server_url(mcp_cfg, transport)
+    parsed = urlparse(full_url)
+    scheme = parsed.scheme or "http"
+    netloc = parsed.netloc
+    path = parsed.path or ("/sse" if transport == "sse" else "/mcp")
+    return f"{scheme}://{netloc}", path
+
+
+def _supports_cli_option(command: str, option: str) -> bool:
+    """Check whether a CLI advertises an option in --help output."""
+    try:
+        proc = subprocess.run(
+            [command, "--help"],
+            capture_output=True,
+            text=True,
+            timeout=6,
+        )
+        haystack = f"{proc.stdout}\n{proc.stderr}".lower()
+        return option.lower() in haystack
+    except Exception:
+        return False
 
 
 def _api_base(server_port: int) -> str:
@@ -200,6 +240,7 @@ def _apply_mcp_inject(
     data_dir: Path,
     proxy_url: str | None,
     *,
+    provider_command: str = "",
     token: str = "",
     mcp_cfg: dict | None = None,
     project_dir: Path | None = None,
@@ -250,6 +291,12 @@ def _apply_mcp_inject(
     elif mode == "flag":
         # Write a config file, pass it as a CLI flag
         flag = inject_cfg.get("mcp_flag", "--mcp-config")
+        fallback_flags = inject_cfg.get("mcp_flag_fallbacks", ["--mcp-config", "--mcp-config-file"])
+        if provider_command and not _supports_cli_option(provider_command, flag):
+            for candidate in fallback_flags:
+                if _supports_cli_option(provider_command, candidate):
+                    flag = candidate
+                    break
         merge_project = inject_cfg.get("mcp_merge_project", False)
         project_servers = _read_project_mcp_servers(project_dir) if (merge_project and project_dir) else {}
         settings_path = _write_claude_mcp_config(
@@ -305,6 +352,7 @@ def _ensure_gemini_folder_trusted(project_dir: Path) -> None:
 def _build_provider_launch(
     agent: str,
     agent_cfg: dict,
+    provider_command: str,
     instance_name: str,
     data_dir: Path,
     proxy_url: str | None,
@@ -325,7 +373,7 @@ def _build_provider_launch(
     inject_cfg = _resolve_mcp_inject(agent, agent_cfg)
     mcp_args, inject_env, settings_path = _apply_mcp_inject(
         inject_cfg, instance_name, data_dir, proxy_url,
-        token=token, mcp_cfg=mcp_cfg, project_dir=project_dir,
+        provider_command=provider_command, token=token, mcp_cfg=mcp_cfg, project_dir=project_dir,
     )
 
     launch_args = [*mcp_args, *extra_args]
@@ -579,12 +627,7 @@ def main():
         from mcp_proxy import McpIdentityProxy
 
         transport = inject_cfg.get("mcp_transport", "http")
-        if transport == "sse":
-            upstream_base = f"http://{_mcp_host()}:{mcp_cfg.get('sse_port', 8201)}"
-            proxy_path = "/sse"
-        else:
-            upstream_base = f"http://{_mcp_host()}:{mcp_cfg.get('http_port', 8200)}"
-            proxy_path = "/mcp"
+        upstream_base, proxy_path = _resolve_proxy_upstream(mcp_cfg, transport)
 
         proxy = McpIdentityProxy(
             upstream_base=upstream_base,
@@ -620,7 +663,7 @@ def main():
         try:
             _apply_mcp_inject(
                 inject_cfg, instance_name, data_dir, proxy_url,
-                token=new_token, mcp_cfg=mcp_cfg,
+                provider_command=command, token=new_token, mcp_cfg=mcp_cfg,
                 project_dir=(ROOT / cwd).resolve(),
             )
         except Exception:
@@ -677,6 +720,7 @@ def main():
     launch_args, env, inject_env, mcp_settings_path = _build_provider_launch(
         agent=agent,
         agent_cfg=agent_cfg,
+        provider_command=command,
         instance_name=assigned_name,
         data_dir=data_dir,
         proxy_url=proxy_url,

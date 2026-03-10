@@ -15,17 +15,19 @@ if (-not (Test-Path $script)) {
 }
 
 $taskName = "agentchattr-remote-wrappers"
-$arg = "`"$script`" $ServerUrl"
+$arg = "`"$script`" $ServerUrl --background"
 
 $action = New-ScheduledTaskAction -Execute "cmd.exe" -Argument "/c $arg"
 $trigger = New-ScheduledTaskTrigger -AtLogOn
-$principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited
+$userId = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+$principal = New-ScheduledTaskPrincipal -UserId $userId -LogonType Interactive -RunLevel Limited
+$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -StartWhenAvailable
 
 if ($WrapperKey) {
     [Environment]::SetEnvironmentVariable("AGENTCHATTR_WRAPPER_KEY", $WrapperKey, "User")
     Write-Host "Saved AGENTCHATTR_WRAPPER_KEY to User environment."
 }
 
-Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Force | Out-Null
+Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force | Out-Null
 Write-Host "Installed startup task: $taskName"
 Write-Host "You can run now with: Start-ScheduledTask -TaskName $taskName"

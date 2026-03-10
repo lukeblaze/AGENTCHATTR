@@ -2,6 +2,30 @@
 
 This project now includes webhook endpoints that let external chat platforms feed messages into agentchattr, and relay agent replies back out.
 
+## Progress snapshot (March 2026)
+
+What has been achieved so far:
+
+- Render deployment is live and serving the UI/API.
+- Telegram bridge/webhook flow is active.
+- Wrapper registration security supports remote wrappers via `AGENTCHATTR_WRAPPER_KEY`.
+- Health-check and status endpoint behavior is fixed for Render deployment checks.
+- Cloud API agents are configured via `config.cloud.toml` (`openrouter`, `geminiapi`, `groq`, `together`).
+- API provider HTTP errors are surfaced in chat for easier diagnosis.
+- Windows helper scripts were added for remote wrapper startup automation.
+- Oracle VM automation assets were added for 24/7 CLI-wrapper hosting.
+
+Current operating mode:
+
+- Recommended production mode is API-only cloud agents (stable for hosted use).
+- Local CLI wrappers (`claude`, `codex`, `gemini`, `kimi`) are treated as optional/manual due to interactive auth + session dependence.
+
+Known constraints:
+
+- `429` means provider quota/rate limits.
+- `401`/`403` means key/permission/model-access issues.
+- Fully free, no-sleep, always-on hosting is not guaranteed on free tiers.
+
 ## What it does
 
 - Inbound Telegram messages -> stored in channel `remote-tg-<chat_id>` (or renamed via command)
