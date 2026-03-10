@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import os
 import re as _re
 import sys
 import threading
@@ -63,6 +64,37 @@ MAX_CHANNELS = 8
 
 # Agent hats (persisted to data/hats.json)
 agent_hats: dict[str, str] = {}  # { agent_name: svg_string }
+
+
+def _offline_fallback_map() -> dict[str, str]:
+    """Resolve mention fallback map for offline agents.
+
+    Uses AGENTCHATTR_OFFLINE_FALLBACK_MAP JSON when provided, else defaults
+    to routing legacy CLI names into cloud API agents.
+    """
+    raw = (os.getenv("AGENTCHATTR_OFFLINE_FALLBACK_MAP") or "").strip()
+    if raw:
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, dict):
+                return {str(k).lower(): str(v).lower() for k, v in parsed.items() if k and v}
+        except Exception:
+            pass
+
+    return {
+        "claude": "openai",
+        "codex": "openai",
+        "gemini": "openrouter",
+        "kimi": "openrouter",
+    }
+
+
+def _fallback_target(target: str, known_agents: set[str]) -> str | None:
+    mapped = _offline_fallback_map().get((target or "").lower())
+    if not mapped:
+        return None
+    # Only use fallback if the mapped target exists in this runtime.
+    return mapped if mapped in known_agents else None
 
 
 def _hats_path() -> Path:
@@ -792,6 +824,20 @@ async def _handle_new_message(msg: dict):
         # Session guard: suppress out-of-turn agent triggers
         if allowed_agent and target != allowed_agent:
             continue
+
+        original_target = target
+        if not mcp_bridge.is_online(target):
+            fallback = _fallback_target(target, known_agents)
+            if fallback and mcp_bridge.is_online(fallback):
+                target = fallback
+                if original_target != target:
+                    store.add(
+                        "system",
+                        f"{original_target} is offline — routed to {target}.",
+                        msg_type="system",
+                        channel=channel,
+                    )
+
         is_remote_bridge_channel = channel.startswith("remote-tg-") or channel.startswith("remote-wa-")
         if not mcp_bridge.is_online(target) and not is_remote_bridge_channel:
             store.add("system", f"{target} appears offline — message queued.", msg_type="system", channel=channel)
